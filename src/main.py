@@ -11,13 +11,15 @@ class test:
         pygame.init()
 
         #window
-        self.screen = pygame.display.set_mode((840, 840))
+        self.screen = pygame.display.set_mode((1100, 840))
         self.clock = pygame.time.Clock()
         self.dt = 0
 
         #map
         self.map = MAP(28, 28, cell_size = 30)
 
+        self.font = pygame.font.SysFont("Consolas", 24)
+        self.predictions = np.zeros(10)
         #config
         cnn_config = {
             "input_shape": (1, 28, 28),     # Channels, Height, Width
@@ -53,13 +55,31 @@ class test:
         
         # Run forward prediction pass
         raw_scores = self.model.forward(input_data)
-        probabilities = train.softmax(raw_scores).flatten()
+        self.predictions = train.softmax(raw_scores).flatten()
         
-        predicted_digit = np.argmax(probabilities)
-        confidence = probabilities[predicted_digit] * 100
+        predicted_digit = np.argmax(self.predictions)
+        confidence = self.predictions[predicted_digit] * 100
         
         # Print a clean live updates console statement
         print(f"Predicted Digit: {predicted_digit} | Confidence: {(confidence):.2f}%", end="\r")      
+
+    def draw_ui(self):
+        """Renders the prediction list on the right side of the screen."""
+        start_x = 860
+        start_y = 50
+        
+        header = self.font.render("Predictions:", True, (0, 0, 0))
+        self.screen.blit(header, (start_x, 20))
+
+        for i in range(10):
+            prob = self.predictions[i]
+            color = (0, 150, 0) if i == np.argmax(self.predictions) and np.sum(self.predictions) > 0 else (50, 50, 50)
+            
+            # Create text string: "Digit 0: 85.2%"
+            text_str = f"Digit {i}: {prob*100:5.2f}%"
+            text_surface = self.font.render(text_str, True, color)
+            
+            self.screen.blit(text_surface, (start_x, start_y + (i * 40)))
 
     def run(self):
         while True:
@@ -68,8 +88,9 @@ class test:
             self.dt = self.clock.tick(60) / 1000
 
             #map and mouse update
-            self.update_mouse()
+            self.update_mouse(2)
             self.map.draw(topright = (0, 0))
+            self.draw_ui()
             
             #event loop
             for event in pygame.event.get():
@@ -83,10 +104,11 @@ class test:
                         quit()
                     if event.key == pygame.K_c:
                         self.map.reset()
+                        self.predictions = np.zeros(10)
 
             pygame.display.update() #update screen
     
-    def update_mouse(self):
+    def update_mouse(self, thickness = 1):
         """
         Left click to draw, right click to erase.
         Runs predictions only when the map actively changes.
@@ -100,11 +122,11 @@ class test:
             buttons = pygame.mouse.get_pressed()
             if buttons[0]: # Left click
                 if self.map.get(row, col) != 1:  # Only predict if drawing changes a pixel
-                    self.map.set(row, col, 1)
+                    self.map.set(row, col, 1, thickness=thickness)
                     self.predict_drawing()
             elif buttons[2]: # Right click
                 if self.map.get(row, col) != 0:  # Only predict if erasing changes a pixel
-                    self.map.set(row, col, 0)
+                    self.map.set(row, col, 0, thickness=thickness)
                     self.predict_drawing()
             
 
@@ -116,8 +138,11 @@ class MAP:
         self.map = np.zeros((row, col))
         self.screen = pygame.display.get_surface()
     
-    def set(self, row, col, value):
-        self.map[row][col] = value
+    def set(self, row, col, value, thickness = 1):
+        for i in range(thickness):
+            for j in range(thickness):
+                if 0 <= row + i < self.row and 0 <= col + j < self.col:
+                    self.map[row + i][col + j] = value
 
     def get(self, row, col):
         return self.map[row][col]

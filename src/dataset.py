@@ -59,7 +59,11 @@ def load_mnist_images(filename):
     with open(os.path.join(DATA_DIR, filename), "rb") as f:
         magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
         images = np.frombuffer(f.read(), dtype=np.uint8)
-        return images.reshape(num, rows, cols)
+        images = images.reshape(num, rows, cols)
+        
+        #Swap the axes to rotate the EMNIST digits upright!
+        return np.swapaxes(images, 1, 2)
+    
 
 
 def load_mnist_labels(filename):
@@ -97,13 +101,6 @@ def load_mnist_dataset(split: str = "train"):
 def load_emnist_images(dataset_name: str, split: str = "train"):
     """
     Load EMNIST images for a specific dataset and split.
-    
-    Args:
-        dataset_name: One of 'balanced', 'byclass', 'bymerge', 'digits', 'letters', 'mnist'
-        split: 'train' or 'test'
-    
-    Returns:
-        numpy array of shape (num_samples, 28, 28)
     """
     filename = f"emnist-{dataset_name}-{split}-images-idx3-ubyte"
     filepath = os.path.join(DATA_DIR, filename)
@@ -114,7 +111,10 @@ def load_emnist_images(dataset_name: str, split: str = "train"):
     with open(filepath, "rb") as f:
         magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
         images = np.frombuffer(f.read(), dtype=np.uint8)
-        return images.reshape(num, rows, cols)
+        images = images.reshape(num, rows, cols)
+        
+        # FIX: Swap the axes to rotate the EMNIST digits upright!
+        return np.swapaxes(images, 1, 2)
 
 
 def load_emnist_labels(dataset_name: str, split: str = "train"):
@@ -174,7 +174,7 @@ if __name__ == "__main__":
     print("DATA DIR:", DATA_DIR)
     print("FILES:", os.listdir(DATA_DIR))
     print()
-    img = 1
+    img = 0
     # Example: Load MNIST
     print("=== MNIST Dataset ===")
     try:

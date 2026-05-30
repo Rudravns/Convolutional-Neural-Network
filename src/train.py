@@ -78,6 +78,52 @@ def train_model(model: CNN, config: dict):
     # Save the trained model parameters locally!
     model.save_weights(save_path)
     
+@time_it
+def test_model(model: CNN, config: dict):
+    dataset_name = config.get("dataset_name", "digits")
+    print(f"\n=============================================")
+    print(f"  Evaluating Model on Unseen Test Data...  ")
+    print(f"=============================================")
+
+    # 1. Load the TEST split of the dataset
+    images, labels = dataset.load_emnist_dataset(dataset_name, "test")
+
+    # Reshape and normalize (exactly the same as training)
+    images = images.reshape(-1, 1, 28, 28) / 255.0
+
+    # For a custom NumPy CNN, testing all 10k+ images might take a few minutes. 
+    # Let's cap it to a specific number (or test the whole thing if you want!)
+    num_test_samples = config.get("num_test_samples", 1000) 
+    num_test_samples = min(num_test_samples, len(images))
+
+    correct = 0
+    total_loss = 0
+
+    # 2. Evaluation Loop (Forward Pass ONLY - No backprop or weight updates!)
+    for idx in range(num_test_samples):
+        X = images[idx]
+        
+        target = np.zeros(config["output_size"])
+        target[labels[idx]] = 1
+        
+        # Forward pass
+        raw_scores = model.forward(X)
+        predictions = softmax(raw_scores)
+        
+        # Metrics tracking
+        total_loss += categorical_cross_entropy(predictions, target)
+        if np.argmax(predictions) == labels[idx]:
+            correct += 1
+
+        # Optional: Print progress every 200 images so you know it's not frozen
+        if (idx + 1) % 200 == 0:
+            print(f"Evaluated {idx + 1}/{num_test_samples} images...", end="\r")
+
+    acc = (correct / num_test_samples) * 100
+    avg_loss = total_loss / num_test_samples
+    
+    print(f"\nFinal Test Accuracy: {acc:.2f}% | Test Avg Loss: {avg_loss:.4f}\n")
+    return acc, avg_loss
 
 
 
@@ -103,3 +149,5 @@ if __name__ == "__main__":
     # Initialize model
     model = CNN(config)
     train_model(model, config)
+    print("Training complete! Now evaluating on test set... \n")
+    test_model(model, config)
