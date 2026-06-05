@@ -31,6 +31,10 @@ A modular, framework-free 2D Convolutional Neural Network built completely from 
 3. **Dataset Setup:**
    The `dataset.py` script automatically handles the extraction of EMNIST/MNIST files. Ensure you have the `.gz` archive files in the `mnist-dataset/` directory relative to the project root.
 
+   Use this link to get [Fruits-360 dataset](https://www.kaggle.com/datasets/moltean/fruits). After downloading make sure it's saved and named as `food-dataset/`.
+
+   
+
 ---
 
 ## 💻 Commands & Code API Reference
@@ -55,7 +59,8 @@ Run these core scripts directly from your terminal workspace inside the project 
 * **Execute Model Training Pipeline:**
   Initializes the weights, iterates backward passes over the specified sample batches, and outputs serialized matrix variables to disk.
   ```bash
-  python src/train.py
+  python src/train.py         # For MNIST (Digits)
+  python src/train_fruits.py  # For Fruit Classification
   ```
 
 * **Launch Interface App Client:**
@@ -148,9 +153,13 @@ loss_value = train.categorical_cross_entropy(probabilities, standard_target_arra
 ## 🏃 Usage
 
 ### 1. Training the Model
-Run the training script to optimize weights on the EMNIST digits dataset. By default, it will train for 5 epochs and save the results to `mnist_cnn_weights.pkl`.
+Run the training script to optimize weights on the EMNIST digits dataset. By default, it will train for 5 epochs and save the results to `mnist_cnn_weights.pkl`. NOTE: training MNIST will take ~25mins.
 ```bash
 python src/train.py
+```
+Run the training script to optimize weights on the fruit-dataset. By default it will train for 5 epochs and save the results to `fruits_cnn_weights.pkl`. NOTE: training this dataset will take ~2hrs.
+```bash
+python src/train_fruits.py
 ```
 
 ### 2. Interactive Inference (GUI)
@@ -169,6 +178,7 @@ python src/main.py
 | **Right Click** | Erase pixels |
 | **'C' Key** | Clear the canvas and reset predictions |
 | **ESC Key** | Exit the application |
+| **L Key** | When running `fruits.py` loads the next image|
 
 ---
 

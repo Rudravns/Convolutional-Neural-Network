@@ -1,9 +1,8 @@
 import os
 import time
-
 import numpy as np
 from CNN import CNN
-import load_fruits  # Using your custom dataset module
+import load_fruits as dataset # Changed from load_mnist to your updated dataset module
 
 # Loss pipeline helpers
 def softmax(x):
@@ -14,8 +13,7 @@ def categorical_cross_entropy(predictions, target):
     predictions = np.clip(predictions, 1e-15, 1.0 - 1e-15)
     return -np.sum(target * np.log(predictions))
 
-
-#just to time it
+# Just to time execution profiles
 def time_it(func):
     def wrapper(*args, **kwargs):
         start_time = time.time()
@@ -28,32 +26,32 @@ def time_it(func):
 # Train the model
 @time_it
 def train_model(model: CNN, config: dict):
-    # Configuration-driven parameters
     num_samples_to_train = config.get("num_samples", 2000)
-    save_path = config.get("save_path", "mnist_cnn_weights.pkl")
-    dataset_name = config.get("dataset_name", "digits")
+    save_path = config.get("save_path", "fruit_cnn_weights.pkl")
+    target_size = config.get("target_size", (32, 32))
 
-    # 1. Extract and load dataset using your file logic
-    print(f"Extracting archive files for '{dataset_name}' if needed...")
-    load_fruits.extract_mnist()
+    print(f"Loading fruit dataset 'train' split samples...")
+    # 1. Load the custom fruit images using your new prefix-matching function
+    images, labels = dataset.load_fruit_dataset("train", target_size=target_size)
 
-    print(f"Loading '{dataset_name}' dataset samples...")
-    # Using the flexible EMNIST loader
-    images, labels = load_fruits.load_emnist_dataset(dataset_name, "train")
+    # 2. Normalize pixel values from to [0.0, 1.0]
+    # No reshape needed! The array is already (Num, 3, 32, 32)
+    images = images.astype(np.float32) / 255.0
 
-    # Reshape from (Num, 28, 28) to (Num, 1, 28, 28) and scale pixels to [0.0, 1.0]
-    images = images.reshape(-1, 1, 28, 28) / 255.0
-
-    # 2. Training Loop Execution
+    # 3. Training Loop Execution
     indices = np.arange(images.shape[0])
-    print(f"Starting training on {num_samples_to_train} images...")
+    
+    # Caps training to your config preference so it doesn't run forever on pure NumPy
+    num_samples_to_train = min(num_samples_to_train, len(images))
+    print(f"Starting training on {num_samples_to_train} fruit images...")
+    
     for epoch in range(config["epochs"]):
         np.random.shuffle(indices)
         total_loss = 0
         correct = 0
         
         for step, idx in enumerate(indices[:num_samples_to_train]):
-            X = images[idx]
+            X = images[idx]  # Shape: (3, 32, 32)
             
             target = np.zeros(config["output_size"])
             target[labels[idx]] = 1
@@ -67,46 +65,51 @@ def train_model(model: CNN, config: dict):
             if np.argmax(predictions) == labels[idx]:
                 correct += 1
                 
-            # Backward and step
+            # Backward and step updates
             loss_grad = predictions - target
             model.backward(loss_grad)
             model.update(config["learning_rate"])
             
+            # Print steps every 100 images so you know it's making progress
+            if (step + 1) % 100 == 0:
+                print(f"  Epoch {epoch+1} | Step {step+1}/{num_samples_to_train}...", end="\r")
+                
         acc = (correct / num_samples_to_train) * 100
         print(f"Epoch {epoch+1}/{config['epochs']} | Avg Loss: {total_loss/num_samples_to_train:.4f} | Accuracy: {acc:.2f}%")
 
     # Save the trained model parameters locally!
     model.save_weights(save_path)
+    print(f"Model weights saved successfully to '{save_path}'!")
     
 @time_it
 def test_model(model: CNN, config: dict):
-    dataset_name = config.get("dataset_name", "digits")
+    target_size = config.get("target_size", (32, 32))
     print(f"\n=============================================")
-    print(f"  Evaluating Model on Unseen Test Data...  ")
+    print(f"   Evaluating Model on Unseen Test Fruits...  ")
     print(f"=============================================")
 
-    # 1. Load the TEST split of the dataset
-    images, labels = load_fruits.load_emnist_dataset(dataset_name, "test")
+    # 1. Load the TEST split of your fruits dataset
+    images, labels = dataset.load_fruit_dataset("test", target_size=target_size)
 
-    # Reshape and normalize (exactly the same as training)
-    images = images.reshape(-1, 1, 28, 28) / 255.0
+    # Convert to float and scale
+    images = images.astype(np.float32) / 255.0
 
-    # For a custom NumPy CNN, testing all 10k+ images might take a few minutes. 
-    # Let's cap it to a specific number (or test the whole thing if you want!)
-    num_test_samples = config.get("num_test_samples", 1000) 
+    # Cap evaluation samples so it returns results rapidly
+    num_test_samples = config.get("num_test_samples", 500) 
     num_test_samples = min(num_test_samples, len(images))
 
     correct = 0
     total_loss = 0
 
-    # 2. Evaluation Loop (Forward Pass ONLY - No backprop or weight updates!)
+    # 2. Evaluation Loop (Forward Pass ONLY)
+    print(f"Evaluating across {num_test_samples} unseen validation images...")
     for idx in range(num_test_samples):
         X = images[idx]
         
         target = np.zeros(config["output_size"])
         target[labels[idx]] = 1
         
-        # Forward pass
+        # Inference
         raw_scores = model.forward(X)
         predictions = softmax(raw_scores)
         
@@ -115,9 +118,8 @@ def test_model(model: CNN, config: dict):
         if np.argmax(predictions) == labels[idx]:
             correct += 1
 
-        # Optional: Print progress every 200 images so you know it's not frozen
-        if (idx + 1) % 200 == 0:
-            print(f"Evaluated {idx + 1}/{num_test_samples} images...", end="\r")
+        if (idx + 1) % 100 == 0:
+            print(f"  Evaluated {idx + 1}/{num_test_samples} test images...", end="\r")
 
     acc = (correct / num_test_samples) * 100
     avg_loss = total_loss / num_test_samples
@@ -126,28 +128,33 @@ def test_model(model: CNN, config: dict):
     return acc, avg_loss
 
 
-
-
 if __name__ == "__main__":
-    # 1. Config matching your spatial structure
     os.system("cls")
+    
+    # Configuration tailored specifically for 3-Channel RGB 32x32 Fruit Processing
     config = {
-        "input_shape": (1, 28, 28),
-        "output_size": 10, # Digits 0-9 require 10 classes
+        "input_shape": (3, 32, 32),        
+        "output_size": 10,                 
+        "target_size": (32, 32),           
         "conv_layers": [
-            {"filters": 8, "kernel_size": 3},
-            {"filters": 16, "kernel_size": 3}
+            {"filters": 12, "kernel_size": 3}, # Slightly increased filters for more feature detection
+            {"filters": 24, "kernel_size": 3}  # Increased filters
         ],
         "pool_size": 2,
-        "fc_hidden": (128, 80, 40),
-        "epochs": 5,
-        "learning_rate": 0.005,
-        "num_samples": 2000,
-        "dataset_name": "digits"
+        "fc_hidden": (128, 80, 40),     
+        "epochs": 5,                       # Give it more loops to find the pattern
+        "learning_rate": 0.001,            # Lowered step size for stability
+        "num_samples": 6000,               # Way more images so it actually learns
+        "num_test_samples": 500,
+        "save_path": "fruit_cnn_weights.pkl"
     }
 
     # Initialize model
     model = CNN(config)
+    
+    # Train
     train_model(model, config)
-    print("Training complete! Now evaluating on test set... \n")
+    print("Training complete! Moving to test metrics evaluation phase... \n")
+    
+    # Evaluate
     test_model(model, config)
